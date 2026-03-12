@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Interactive AI Particle Simulator</title>
+  <style>
+    :root{
+      --bg:#050708; --panel:#0b0f12; --panel2:#10161b; --line:#1b262d;
+      --text:#d8f8df; --muted:#7da189; --accent:#42ff86; --accent2:#7cffb3;
+      --danger:#ff4d67;
+      --shadow:0 0 0 1px rgba(66,255,134,.15), 0 0 24px rgba(66,255,134,.06);
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:Inter,system-ui,sans-serif;overflow:hidden}
+    #app{display:grid;grid-template-columns:320px 1fr;height:100%}
+    #panel{
+      background:linear-gradient(180deg, rgba(13,17,21,.98), rgba(7,10,12,.98));
+      border-right:1px solid var(--line); padding:14px; overflow:auto;
+    }
+    #stageWrap{position:relative;overflow:hidden;background:radial-gradient(circle at center, rgba(19,45,25,.3), transparent 40%), #000}
+    #canvas{display:block;width:100%;height:100%;cursor:crosshair}
+    .hud{
+      position:absolute;right:16px;bottom:16px;
+      background:rgba(5,10,8,.8);backdrop-filter:blur(10px);
+      border:1px solid rgba(66,255,134,.2);box-shadow:var(--shadow);
+      padding:12px 14px;min-width:250px; border-radius:12px;
+    }
+    .title{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+    .title h1{font-size:18px;margin:0;color:var(--accent);letter-spacing:.05em}
+    .badge{font-size:11px;padding:4px 8px;border:1px solid rgba(66,255,134,.2);border-radius:999px;color:var(--accent2);background:rgba(66,255,134,.07)}
+    .section{margin-bottom:14px;padding:12px;background:rgba(255,255,255,.02);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
+    .section h2{margin:0 0 10px 0;font-size:11px;letter-spacing:.12em;color:var(--muted);font-weight:700}
+    .row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;margin:8px 0}
+    .row label{font-size:12px;color:#dcecdf}
+    .value{font-size:11px;color:var(--accent2);min-width:48px;text-align:right}
+    input[type="range"]{width:100%;appearance:none;height:3px;background:#1d2b22;border-radius:999px;outline:none}
+    input[type="range"]::-webkit-slider-thumb{appearance:none;width:14px;height:14px;border-radius:50%;background:var(--accent);box-shadow:0 0 12px rgba(66,255,134,.65)}
+    input[type="color"], select{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--text);padding:8px 10px;border-radius:8px;outline:none}
+    input[type="file"]{display:none}
+    .btnRow{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+    button, .uploadBtn{
+      width:100%;padding:11px 12px;border-radius:10px;border:1px solid rgba(66,255,134,.25);
+      background:linear-gradient(180deg, rgba(66,255,134,.13), rgba(66,255,134,.04));color:var(--accent2);
+      cursor:pointer;font-weight:700;letter-spacing:.02em;transition:.18s;text-align:center;display:inline-block
+    }
+    button:hover,.uploadBtn:hover{transform:translateY(-1px);background:linear-gradient(180deg, rgba(66,255,134,.18), rgba(66,255,134,.06))}
+    button.secondary{border-color:#27353c;background:rgba(255,255,255,.03);color:#d4dde1}
+    button.danger{border-color:rgba(255,77,103,.35);color:#ff91a1;background:rgba(255,77,103,.08)}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .mini{font-size:11px;color:var(--muted);line-height:1.45;margin-top:8px;}
+    .toggle{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:8px 0}
+    .toggle label{font-size:12px;color:#dcecdf}
+    .toggle input{accent-color:var(--accent);width:16px;height:16px}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+    .legend{position:absolute;left:16px;top:16px;background:rgba(0,0,0,.65);border:1px solid rgba(66,255,134,.14);padding:10px 12px;border-radius:12px;font-size:12px;color:#d0ecd7;backdrop-filter:blur(6px);line-height:1.6}
+    .legend strong{color:var(--accent)}
+    .footer{font-size:11px;color:var(--muted);line-height:1.45;margin-top:8px}
+    canvas.thumb{width:100%;background:#000;border:1px solid var(--line);border-radius:10px;display:block;margin-top:8px}
+    #togglePanel{display:none;position:absolute;left:14px;bottom:14px;z-index:12}
+    @media (max-width:980px){
+      #app{grid-template-columns:1fr}
+      #panel{position:absolute;z-index:10;width:min(360px,92vw);height:100%;transform:translateX(-100%);transition:.25s transform}
+      #panel.open{transform:translateX(0)}
+      #togglePanel{display:block !important}
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <aside id="panel">
+      <div class="title">
+        <h1>AI PARTICLE SIM</h1>
+        <div class="badge">V2.1 OPTIMIZED</div>
+      </div>
+
+      <div class="section">
+        <h2>EMISSION</h2>
+        <div class="row"><label>Mode</label>
+          <select id="mode">
+            <option value="cursor">Cursor Emit</option>
+            <option value="image">Image Emit</option>
+            <option value="webcam">Webcam Live</option>
+          </select>
+        </div>
+        <div class="row"><label>Style</label>
+          <select id="style">
+            <option value="fire">Fire</option>
+            <option value="smoke">Smoke</option>
+            <option value="embers">Embers</option>
+            <option value="neon">Neon</option>
+          </select>
+        </div>
+        <div class="row"><label>Emit Rate</label><span class="value" data-value-for="emitRate"></span></div>
+        <input id="emitRate" type="range" min="1" max="300" step="1" value="50" />
+        <div class="row"><label>Particle Size</label><span class="value" data-value-for="size"></span></div>
+        <input id="size" type="range" min="1" max="18" step="0.5" value="4.5" />
+        <div class="row"><label>Life</label><span class="value" data-value-for="life"></span></div>
+        <input id="life" type="range" min="0.2" max="8" step="0.1" value="2.4" />
+      </div>
+
+      <div class="section">
+        <h2>PHYSICS</h2>
+        <div class="row"><label>Gravity</label><span class="value" data-value-for="gravity"></span></div>
+        <input id="gravity" type="range" min="-400" max="700" step="1" value="-80" />
+        <div class="row"><label>Drag</label><span class="value" data-value-for="drag"></span></div>
+        <input id="drag" type="range" min="0" max="4" step="0.01" value="0.45" />
+        <div class="row"><label>Turbulence</label><span class="value" data-value-for="turbulence"></span></div>
+        <input id="turbulence" type="range" min="0" max="500" step="1" value="120" />
+        <div class="row"><label>Buoyancy</label><span class="value" data-value-for="buoyancy"></span></div>
+        <input id="buoyancy" type="range" min="-300" max="300" step="1" value="90" />
+      </div>
+
+      <div class="section">
+        <h2>IMAGE / AUDIO SOURCE</h2>
+        <label class="uploadBtn" for="imageInput">Upload Image</label>
+        <input id="imageInput" type="file" accept="image/*" />
+        <div class="grid2" style="margin-top:10px">
+          <div><div class="row"><label>Bright Cut</label></div><input id="threshold" type="range" min="0" max="255" step="1" value="120" /></div>
+          <div><div class="row"><label>Density</label></div><input id="imgDensity" type="range" min="1" max="40" step="1" value="12" /></div>
+        </div>
+        <canvas id="thumb" class="thumb" width="280" height="160"></canvas>
+        <div class="toggle"><label>Mic Sync (Audio Reactive)</label><input id="micSync" type="checkbox" /></div>
+        <div class="mini">웹캠 모드일 때는 카메라의 밝은 영역에서, 마이크 연동 시 소리 크기에 따라 반응합니다.</div>
+      </div>
+
+      <div class="section">
+        <h2>LOOK & CONTROL</h2>
+        <div class="row"><label>Base Color</label><input id="color" type="color" value="#42ff86" /></div>
+        <div class="toggle"><label>Blend Additive</label><input id="additive" type="checkbox" checked /></div>
+        <div class="btnRow">
+          <button id="presetFire">FIRE</button>
+          <button id="presetNeon" class="secondary">NEON</button>
+        </div>
+        <div class="btnRow">
+          <button id="burstBtn">BURST</button>
+          <button id="clearBtn" class="danger">CLEAR</button>
+        </div>
+        <div class="footer">
+          <strong>Left Click Drag</strong> = 마우스 반발력 (밀어내기)<br>
+          <strong>Right Click</strong> = 중력점(블랙홀) 생성
+        </div>
+      </div>
+    </aside>
+
+    <main id="stageWrap">
+      <canvas id="canvas"></canvas>
+      <div class="legend">
+        <strong>Mouse L-Drag</strong>: Force Field / <strong>Mouse R-Click</strong>: Add Attractor<br>
+        <strong>Webcam/Mic</strong>: Enable in side panel
+      </div>
+      <div class="hud mono" id="hud">Particles: 0<br>FPS: --<br>Attractors: 0</div>
+      <button id="togglePanel" class="secondary">MENU</button>
+    </main>
+  </div>
+
+  <script>
+    // --- 최적화 상수 ---
+    const PI2 = Math.PI * 2;
+    
+    // DOM Elements
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d', { alpha: false }); // 렌더링 최적화
+    const stageWrap = document.getElementById('stageWrap');
+    const hud = document.getElementById('hud');
+    const thumb = document.getElementById('thumb');
+    const tctx = thumb.getContext('2d', { willReadFrequently: true });
+    
+    const ui = {
+      mode: document.getElementById('mode'), style: document.getElementById('style'),
+      emitRate: document.getElementById('emitRate'), size: document.getElementById('size'),
+      life: document.getElementById('life'), gravity: document.getElementById('gravity'),
+      drag: document.getElementById('drag'), turbulence: document.getElementById('turbulence'),
+      buoyancy: document.getElementById('buoyancy'), threshold: document.getElementById('threshold'),
+      imgDensity: document.getElementById('imgDensity'), color: document.getElementById('color'),
+      additive: document.getElementById('additive'), imageInput: document.getElementById('imageInput'),
+      micSync: document.getElementById('micSync'), burstBtn: document.getElementById('burstBtn'),
+      presetFire: document.getElementById('presetFire'), presetNeon: document.getElementById('presetNeon'),
+      clearBtn: document.getElementById('clearBtn')
+    };
+
+    const state = {
+      particles: [],
+      maxParticles: 15000,
+      pointer: {x: -1000, y: -1000, vx: 0, vy: 0, down: false},
+      attractors: [],
+      imagePoints: [],
+      lastTime: performance.now(),
+      fpsTimer: 0, frames: 0, fps: 0,
+      dpr: Math.min(window.devicePixelRatio || 1, 2),
+      offCanvas: document.createElement('canvas'),
+      offCtx: null,
+      audioLevel: 0
+    };
+    state.offCtx = state.offCanvas.getContext('2d', { willReadFrequently: true });
+
+    // --- Media Setup (Webcam & Audio) ---
+    const video = document.createElement('video');
+    video.autoplay = true; video.muted = true;
+    let webcamActive = false;
+    let audioCtx, analyser, freqData;
+
+    ui.mode.addEventListener('change', (e) => {
+      if (e.target.value === 'webcam' && !webcamActive) {
+        navigator.mediaDevices.getUserMedia({ video: { width: 320 } }).then(stream => {
+          video.srcObject = stream; webcamActive = true;
+        }).catch(err => alert('Webcam access denied or unavailable.'));
+      }
+    });
+
+    ui.micSync.addEventListener('change', (e) => {
+      if (e.target.checked && !audioCtx) {
+        navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+          audioCtx = new AudioContext();
+          analyser = audioCtx.createAnalyser();
+          audioCtx.createMediaStreamSource(stream).connect(analyser);
+          analyser.fftSize = 64;
+          freqData = new Uint8Array(analyser.frequencyBinCount);
+        }).catch(err => { alert('Mic access denied.'); ui.micSync.checked = false; });
+      }
+    });
+
+    // --- Resize & UI Bindings ---
+    function resize() {
+      const rect = stageWrap.getBoundingClientRect();
+      canvas.width = rect.width * state.dpr;
+      canvas.height = rect.height * state.dpr;
+      ctx.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
+    }
+    window.addEventListener('resize', resize); resize();
+
+    document.querySelectorAll('[data-value-for]').forEach(el => {
+      const input = ui[el.dataset.valueFor];
+      const update = () => el.textContent = input.value;
+      input.addEventListener('input', update); update();
+    });
+
+    // --- Math & Color Utilities ---
+    function rand(min, max) { return Math.random() * (max - min) + min; }
+    function hexToRgb(hex) { const n = parseInt(hex.replace('#', ''), 16); return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 }; }
+    function lerp(a, b, t) { return a + (b - a) * t; }
+    
+    // 간소화된 노이즈 (퍼포먼스 최적화)
+    function fastNoise(x, y, t) {
+      return Math.sin(x * 0.01 + t) * Math.cos(y * 0.01 - t);
+    }
+
+    // --- Particle Logic ---
+    function spawnParticle(x, y, vx, vy, colorOverride) {
+      if (state.particles.length >= state.maxParticles) return;
+      const style = ui.style.value;
+      const audioScale = 1 + (state.audioLevel * 1.5); // 소리에 따른 크기 뻥튀기
+      const size = parseFloat(ui.size.value) * rand(0.7, 1.3) * audioScale;
+      const life = parseFloat(ui.life.value) * rand(0.5, 1.5);
+      
+      let baseR, baseG, baseB;
+      if (colorOverride) {
+        baseR = colorOverride.r; baseG = colorOverride.g; baseB = colorOverride.b;
+      } else {
+        const c = hexToRgb(ui.color.value);
+        baseR = c.r; baseG = c.g; baseB = c.b;
+      }
+
+      state.particles.push({
+        x, y, vx: vx || rand(-20, 20), vy: vy || rand(-20, 20),
+        life, maxLife: life, size, style,
+        r: baseR, g: baseG, b: baseB
+      });
+    }
+
+    function emitCursorBurst(mult = 1) {
+      const count = Math.floor(parseFloat(ui.emitRate.value) * mult * (1 + state.audioLevel));
+      for (let i = 0; i < count; i++) {
+        spawnParticle(state.pointer.x + rand(-15, 15), state.pointer.y + rand(-15, 15), state.pointer.vx * 10 + rand(-40, 40), state.pointer.vy * 10 + rand(-40, 40));
+      }
+    }
+
+    // --- Image / Webcam Sampling ---
+    function updateImagePoints(source) {
+      const fitW = thumb.width, fitH = thumb.height;
+      tctx.fillStyle = '#000'; tctx.fillRect(0, 0, fitW, fitH);
+      const ratio = Math.min(fitW / source.videoWidth || source.width, fitH / source.videoHeight || source.height);
+      const dw = (source.videoWidth || source.width) * ratio;
+      const dh = (source.videoHeight || source.height) * ratio;
+      tctx.drawImage(source, (fitW - dw) / 2, (fitH - dh) / 2, dw, dh);
+
+      state.offCanvas.width = 64; state.offCanvas.height = 64;
+      state.offCtx.drawImage(source, 0, 0, 64, 64);
+      const data = state.offCtx.getImageData(0, 0, 64, 64).data;
+      
+      const threshold = parseInt(ui.threshold.value, 10);
+      const density = parseInt(ui.imgDensity.value, 10);
+      state.imagePoints.length = 0;
+      const stageW = canvas.width / state.dpr; const stageH = canvas.height / state.dpr;
+
+      for (let y = 0; y < 64; y += density) {
+        for (let x = 0; x < 64; x += density) {
+          const idx = (y * 64 + x) * 4;
+          const bright = 0.2126 * data[idx] + 0.7152 * data[idx+1] + 0.0722 * data[idx+2];
+          if (bright >= threshold) {
+            state.imagePoints.push({
+              x: (x / 64) * stageW, y: (y / 64) * stageH,
+              color: { r: data[idx], g: data[idx+1], b: data[idx+2] }
+            });
+          }
+        }
+      }
+    }
+
+    ui.imageInput.addEventListener('change', e => {
+      const reader = new FileReader();
+      reader.onload = ev => {
+        const img = new Image();
+        img.onload = () => { ui.mode.value = 'image'; updateImagePoints(img); window.currentImg = img; };
+        img.src = ev.target.result;
+      };
+      if (e.target.files[0]) reader.readAsDataURL(e.target.files[0]);
+    });
+
+    // --- Interactions ---
+    canvas.addEventListener('mousemove', e => {
+      const rect = canvas.getBoundingClientRect();
+      const nx = e.clientX - rect.left, ny = e.clientY - rect.top;
+      state.pointer.vx = nx - state.pointer.x; state.pointer.vy = ny - state.pointer.y;
+      state.pointer.x = nx; state.pointer.y = ny;
+      if (state.pointer.down && ui.mode.value === 'cursor') emitCursorBurst();
+    });
+    canvas.addEventListener('mousedown', () => state.pointer.down = true);
+    window.addEventListener('mouseup', () => state.pointer.down = false);
+    
+    // 우클릭으로 중력점(Attractor) 생성
+    canvas.addEventListener('contextmenu', e => {
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      state.attractors.push({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+    });
+
+    ui.clearBtn.addEventListener('click', () => { state.particles.length = 0; state.attractors.length = 0; });
+    ui.burstBtn.addEventListener('click', () => emitCursorBurst(15));
+    
+    function applyPreset(type) {
+      if(type==='fire') { ui.style.value='fire'; ui.gravity.value=-90; ui.drag.value=0.5; ui.color.value='#ff4d22'; ui.additive.checked=true;}
+      if(type==='neon') { ui.style.value='neon'; ui.gravity.value=0; ui.drag.value=0.2; ui.color.value='#42ff86'; ui.additive.checked=true;}
+      document.querySelectorAll('[data-value-for]').forEach(el => el.textContent = ui[el.dataset.valueFor].value);
+    }
+    ui.presetFire.addEventListener('click', () => applyPreset('fire'));
+    ui.presetNeon.addEventListener('click', () => applyPreset('neon'));
+
+    // --- Main Loop ---
+    let webCamTimer = 0;
+    function loop(now) {
+      const dt = Math.min((now - state.lastTime) / 1000, 0.05);
+      state.lastTime = now;
+      const time = now * 0.002;
+
+      // FPS & Audio calc
+      state.frames++; state.fpsTimer += dt;
+      if (state.fpsTimer >= 0.5) {
+        state.fps = Math.round(state.frames / state.fpsTimer);
+        state.frames = 0; state.fpsTimer = 0;
+        hud.innerHTML = `Particles: ${state.particles.length}<br>FPS: ${state.fps}<br>Attractors: ${state.attractors.length}`;
+      }
+      if (analyser && ui.micSync.checked) {
+        analyser.getByteFrequencyData(freqData);
+        state.audioLevel = freqData[0] / 255; // 저음역대 기반
+      } else { state.audioLevel = 0; }
+
+      // Webcam / Image Emitter Update
+      if (ui.mode.value === 'webcam' && video.readyState >= 2) {
+        webCamTimer += dt;
+        if (webCamTimer > 0.1) { updateImagePoints(video); webCamTimer = 0; }
+      }
+      if ((ui.mode.value === 'image' || ui.mode.value === 'webcam') && state.imagePoints.length > 0) {
+        const emitCount = Math.floor(parseFloat(ui.emitRate.value) * (1 + state.audioLevel * 2));
+        for(let i=0; i<emitCount; i++) {
+          const pt = state.imagePoints[Math.floor(Math.random() * state.imagePoints.length)];
+          spawnParticle(pt.x, pt.y, rand(-10,10), rand(-10,10), pt.color);
+        }
+      }
+
+      const gravity = parseFloat(ui.gravity.value);
+      const drag = Math.max(0, 1 - parseFloat(ui.drag.value) * dt);
+      const turbulence = parseFloat(ui.turbulence.value);
+      const buoyancy = parseFloat(ui.buoyancy.value);
+
+      // Rendering Prep
+      ctx.fillStyle = 'rgba(5,7,8,0.2)'; // 잔상(Trail) 효과 최적화
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillRect(0, 0, canvas.width/state.dpr, canvas.height/state.dpr);
+      ctx.globalCompositeOperation = ui.additive.checked ? 'lighter' : 'source-over';
+
+      // --- 파티클 시뮬레이션 및 렌더링 (단일 루프 최적화) ---
+      for (let i = state.particles.length - 1; i >= 0; i--) {
+        const p = state.particles[i];
+        const ageT = p.life / p.maxLife; // 1 -> 0
+        
+        // 사망 처리 (Swap and Pop 최적화 - 가장 중요!)
+        p.life -= dt;
+        if (p.life <= 0) {
+          state.particles[i] = state.particles[state.particles.length - 1];
+          state.particles.pop();
+          continue;
+        }
+
+        // 기본 물리
+        let ax = fastNoise(p.x, p.y, time) * turbulence;
+        let ay = gravity - buoyancy * ageT + fastNoise(p.y, p.x, time) * turbulence;
+
+        // 마우스 반발력 (Force Field)
+        if (state.pointer.down) {
+          const dx = p.x - state.pointer.x, dy = p.y - state.pointer.y;
+          const distSq = dx*dx + dy*dy;
+          if (distSq < 15000) {
+            const force = (15000 - distSq) / 15000;
+            ax += dx * force * 15; ay += dy * force * 15;
+          }
+        }
+
+        // 중력점 (Attractors)
+        for (let j=0; j<state.attractors.length; j++) {
+          const a = state.attractors[j];
+          const adx = a.x - p.x, ady = a.y - p.y;
+          const distSq = Math.max(100, adx*adx + ady*ady);
+          ax += (adx / Math.sqrt(distSq)) * (80000 / distSq); // 역제곱 법칙
+        }
+
+        p.vx = (p.vx + ax * dt) * drag;
+        p.vy = (p.vy + ay * dt) * drag;
+        p.x += p.vx * dt; p.y += p.vy * dt;
+
+        // 렌더링 (shadowBlur 제거 및 투명한 큰 원 겹치기로 최적화 글로우 구현)
+        const s = p.size * (p.style === 'fire' ? (2 - ageT) : 1.5 - ageT);
+        const alpha = ageT * (p.style === 'smoke' ? 0.4 : 0.8);
+        
+        ctx.fillStyle = `rgba(${p.r},${p.g},${p.b},${alpha})`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, s, 0, PI2);
+        ctx.fill();
+
+        // Fake Glow (빛 번짐 연산 줄이기)
+        if (p.style !== 'smoke') {
+          ctx.fillStyle = `rgba(${p.r},${p.g},${p.b},${alpha * 0.3})`;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, s * 2.5, 0, PI2);
+          ctx.fill();
+        }
+      }
+
+      // 중력점 시각화 렌더링
+      ctx.fillStyle = '#fff';
+      state.attractors.forEach(a => {
+        ctx.beginPath(); ctx.arc(a.x, a.y, 4, 0, PI2); ctx.fill();
+        ctx.beginPath(); ctx.arc(a.x, a.y, 12, 0, PI2); ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.stroke();
+      });
+
+      requestAnimationFrame(loop);
+    }
+
+    applyPreset('neon');
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
